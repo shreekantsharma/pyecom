@@ -1,0 +1,55 @@
+# Deploying Streamlit on Hostinger (hPanel)
+
+There are two main types of hosting on Hostinger: **Shared/Cloud Web Hosting** and **VPS Hosting**. Streamlit works very differently on each.
+
+## ⚠️ Important: Shared vs. VPS Hosting
+**Streamlit apps create a continuous running server**, unlike standard PHP/WordPress sites that only run when a user visits a page.
+- **Shared / Cloud Web Hosting**: usually **DOES NOT support Streamlit** natively. You generally cannot open custom ports (like 8501) and long-running background processes are often killed by the server.
+- **VPS Hosting**: This is **required** to run Streamlit on Hostinger. You get full control to install Python, open ports, and keep the app running.
+
+---
+
+## Scenario A: I have a VPS Plan (Recommended)
+If you have a VPS plan, follow these steps to deploy your app:
+
+1. **SSH into your VPS**:
+   Use the Terminal in hPanel or your local terminal:
+   ```bash
+   ssh root@your-server-ip
+   ```
+
+2. **Update and Install Docker**:
+   ```bash
+   apt-get update
+   apt-get install docker.io -y
+   ```
+
+3. **Upload your files**:
+   You can use SFTP (FileZilla) or `scp` to copy [app.py](file:///Users/shreekant/.gemini/antigravity/brain/660b5934-1c3a-417f-85f2-433e7a14ae5a/app.py), [requirements.txt](file:///Users/shreekant/.gemini/antigravity/brain/660b5934-1c3a-417f-85f2-433e7a14ae5a/requirements.txt), [Dockerfile](file:///Users/shreekant/.gemini/antigravity/brain/660b5934-1c3a-417f-85f2-433e7a14ae5a/Dockerfile), and [column_mapping.md](file:///Users/shreekant/.gemini/antigravity/brain/660b5934-1c3a-417f-85f2-433e7a14ae5a/column_mapping.md) to a folder like `/root/dashboard`.
+
+4. **Build and Run**:
+   Navigate to the folder and run:
+   ```bash
+   cd /root/dashboard
+   docker build -t dropship-dashboard .
+   docker run -d -p 80:8501 --restart always dropship-dashboard
+   ```
+   *Note: We mapped port 80 to 8501 so you can access it directly via your IP/Domain without `:8501`.*
+
+---
+
+## Scenario B: I have Shared/Cloud Hosting (Standard)
+If you are on a standard plan, you cannot easily run Streamlit directly. The "Python App" feature in hPanel is designed for WSGI apps (Flask/Django), not Streamlit.
+
+### Best Alternative: Streamlit Community Cloud (Free)
+Since you cannot run the server process on Shared hosting, the best way is to host the app for free on Streamlit Cloud and link it to your domain.
+
+1. **Upload your code to GitHub**.
+2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in.
+3. Click **"New App"** and select your GitHub repository.
+4. Once deployed, you will get a URL (e.g., `https://your-app.streamlit.app`).
+5. **Embed in your Hostinger Website**:
+   If you have a main website on Hostinger, you can embed the dashboard using an iframe:
+   ```html
+   <iframe src="https://your-app.streamlit.app" width="100%" height="800px"></iframe>
+   ```

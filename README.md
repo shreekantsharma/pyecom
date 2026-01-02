@@ -1,0 +1,44 @@
+# Dropship Analytics Dashboard
+
+This is a Streamlit dashboard for visualizing e-commerce data.
+
+## features
+- **Filters**: Date range, Order Status, Payment Method, Product configuration.
+- **KPIs**: Synced Orders, GMV, In Transit %, Delivery %, RTO %.
+- **Charts**: Top products, Margin distribution, Daily trends.
+
+## Local Installation
+
+1. Clone or download this repository.
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Run the app:
+   ```bash
+   streamlit run app.py
+   ```
+
+## Deployment Options
+
+### Option 1: Docker (Recommended for VPS/Cloud)
+1. Build the image:
+   ```bash
+   docker build -t dropship-dashboard .
+   ```
+2. Run the container:
+   ```bash
+   docker run -p 8501:8501 dropship-dashboard
+   ```
+   Access at `http://localhost:8501`.
+
+### Option 2: Heroku / PaaS
+This repository includes a `Procfile` for easy deployment on platforms like Heroku.
+1. Create a new Heroku app.
+2. Push this code to the Heroku remote.
+3. Ensure the buildpack is set to Python.
+
+### Option 3: Streamlit Community Cloud
+1. Push this code to a GitHub repository.
+2. Connect your GitHub account to [share.streamlit.io](https://share.streamlit.io).
+3. Select the repository and `app.py` as the entry point.
