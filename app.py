@@ -73,8 +73,8 @@ def normalize_columns(df):
         'order_status': ['status', 'order status', 'fulfillment status', 'financial status'],
         'payment_method': ['payment method', 'payment mode', 'type'],
         'product_name': ['product name', 'item name', 'title', 'lineitem name'],
-        'sku': ['sku', 'variant sku', 'item sku', 'lineitem sku'],
-        'state': ['shipping province', 'shipping state', 'state', 'province', 'shipping_address_province'],
+        'sku': ['sku', 'variant sku', 'item sku', 'lineitem sku', 'product code', 'reference', 'model number', 'master sku'],
+        'state': ['shipping province', 'shipping state', 'state', 'province', 'shipping_address_province', 'customer state', 'billing state', 'region', 'destination state', 'state/province', 'state / province', 'shipping address state', 'address state'],
         'gmv_amount': ['total', 'order total', 'gmv', 'amount', 'price', 'total_price'],
         'margin_amount': ['margin', 'profit', 'margin amount'],
         'margin_percent': ['margin %', 'margin percent', 'profit %'],
@@ -109,6 +109,7 @@ def process_data(df):
         'gmv_amount': 0,
         'payment_method': 'Unknown',
         'product_name': 'Unknown Product',
+        'sku': 'Unknown SKU',
         'state': 'Unknown'
     }
     
@@ -167,6 +168,25 @@ if uploaded_file:
     
     if raw_df is not None:
         df = normalize_columns(raw_df)
+        
+        # --- Column Mapping Fallback ---
+        # Check if 'state' was successfully detected or if it's just the default dummy
+        state_col_valid = 'state' in df.columns and not (df['state'] == 'Unknown').all()
+        
+        if not state_col_valid:
+            st.sidebar.warning("State column not auto-detected.")
+            # Restore original columns for selection to avoid confusion (or use current)
+            # offering all columns from df as potential candidates
+            possible_cols = df.columns.tolist()
+            manual_state_col = st.sidebar.selectbox("Select State Column", ['Select One...'] + possible_cols)
+            
+            if manual_state_col != 'Select One...':
+                df['state'] = df[manual_state_col].astype(str).str.strip()
+            else:
+                # keep default but warn
+                if 'state' not in df.columns:
+                    df['state'] = 'Unknown'
+
         df = process_data(df)
         
         # --- Sidebar Filters ---
@@ -194,7 +214,10 @@ if uploaded_file:
         selected_payment = st.sidebar.selectbox("Payment Method", payment_options)
         
         product_options = ['All'] + sorted(df['product_name'].astype(str).unique().tolist())
-        selected_product = st.sidebar.multiselect("Product Name", product_options, default=None) # Multiselect is better for products
+        selected_product = st.sidebar.multiselect("Product Name", product_options, default=None) 
+        
+        sku_options = ['All'] + sorted(df['sku'].astype(str).unique().tolist())
+        selected_sku = st.sidebar.multiselect("SKU", sku_options, default=None)
         
         # --- Filtering Data ---
         filtered_df = df.copy()
@@ -213,6 +236,9 @@ if uploaded_file:
             
         if selected_product:
             filtered_df = filtered_df[filtered_df['product_name'].isin(selected_product)]
+            
+        if selected_sku:
+            filtered_df = filtered_df[filtered_df['sku'].isin(selected_sku)]
             
         # --- KPI Calculations ---
         # B) Synced Orders
@@ -389,20 +415,35 @@ if uploaded_file:
         m1, m2 = st.columns([1, 1])
         
         with m1:
-            st.subheader("Order Distribution by State")
-            state_data = valid_orders['state'].value_counts().reset_index()
-            state_data.columns = ['State', 'Orders']
-            state_data['Order Share %'] = (state_data['Orders'] / len(valid_orders) * 100).round(2)
+            st.subheader("Delivery by State")
             
-            # Basic normalization for Plotly India Map (names need to match GeoJSON features usually)
-            # Falling back to Bar chart as primary robust option if GeoJson not loaded, 
-            # but user asked for Map preference.
-            # Using simple bar for robustness in single-file script without external geojson assets
+            state_grp = valid_orders.groupby('state').apply(
+                lambda x: pd.Series({
+                    'Orders': x['order_id'].nunique(),
+                    'Delivered': x[x['status_bucket'] == 'DELIVERED']['order_id'].nunique(),
+                    'RTO': x[x['status_bucket'] == 'RTO']['order_id'].nunique(),
+                    'Undelivered': x[x['status_bucket'] == 'UNDELIVERED']['order_id'].nunique()
+                })
+            ).reset_index()
+
+            state_grp['Order Share %'] = (state_grp['Orders'] / synced_orders_count * 100).round(2)
+            denom_state = state_grp['Delivered'] + state_grp['RTO'] + state_grp['Undelivered']
+            state_grp['Delivered %'] = np.where(denom_state > 0, (state_grp['Delivered'] / denom_state * 100), 0)
+            state_grp['RTO %'] = np.where(denom_state > 0, (state_grp['RTO'] / denom_state * 100), 0)
+
+            display_state_cols = ['state', 'Order Share %', 'Delivered %', 'RTO %']
             
-            fig_map = px.bar(state_data.head(15), x='State', y='Order Share %', color='Orders', color_continuous_scale='Blues')
-            fig_map.update_layout(margin=dict(t=0, b=0, l=0, r=0))
-            st.info("Note: Using Top 15 States Bar Chart (GeoJSON map requires external asset loading)")
-            st.plotly_chart(fig_map, use_container_width=True)
+            st.dataframe(
+                state_grp[display_state_cols].sort_values('Order Share %', ascending=False),
+                column_config={
+                    "state": "State",
+                    "Order Share %": st.column_config.NumberColumn(format="%.2f%%"),
+                    "Delivered %": st.column_config.NumberColumn(format="%.2f%%"),
+                    "RTO %": st.column_config.NumberColumn(format="%.2f%%")
+                },
+                hide_index=True,
+                use_container_width=True
+            )
 
         with m2:
             st.subheader("Delivery by Margin Range")
